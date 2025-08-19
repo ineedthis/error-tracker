@@ -94,14 +94,14 @@ defmodule ErrorTracker.MixProject do
       {:myxql, ">= 0.0.0", optional: true},
       {:ecto_sqlite3, ">= 0.0.0", optional: true},
       # Dev dependencies
-      {:bun, "~> 1.3", only: :dev},
-      {:credo, "~> 1.7", only: [:dev, :test]},
+      {:bun, "~> 1.5", only: :dev},
+      {:credo, "~> 1.7.12", only: [:dev, :test]},
       {:ex_doc, "~> 0.33", only: :dev},
       {:phoenix_live_reload, ">= 0.0.0", only: :dev},
       {:plug_cowboy, ">= 0.0.0", only: :dev},
       {:tailwind, "~> 0.2", only: :dev},
       # Optional dependencies
-      {:igniter, "~> 0.5", optional: true}
+      # {:igniter, "~> 0.5", optional: true}  # Temporarily disabled due to Elixir 1.18.4 compatibility
     ]
   end
 
@@ -110,7 +110,8 @@ defmodule ErrorTracker.MixProject do
       dev: "run --no-halt dev.exs",
       "assets.install": ["bun.install", "cmd _build/bun install --cwd assets/"],
       "assets.watch": ["tailwind default --watch"],
-      "assets.build": ["bun default", "tailwind default"]
+      "assets.build": ["bun default", "tailwind default"],
+      "assets.build.prod": ["cmd _build/bun build assets/js/app.js --outdir priv/static --minify", "tailwind default --minify"]
     ]
   end
 end
