@@ -93,7 +93,13 @@ defmodule ErrorTracker.Web.Live.Dashboard do
 
   @impl Phoenix.LiveView
   def handle_event("next-page", _params, socket) do
-    {:noreply, socket |> assign(page: socket.assigns.page + 1) |> paginate_errors()}
+    current_page = socket.assigns.page || 1
+    total_pages = socket.assigns.total_pages || 1
+
+    # Only advance if we're not already on the last page
+    new_page = if current_page < total_pages, do: current_page + 1, else: current_page
+
+    {:noreply, socket |> assign(page: new_page) |> paginate_errors()}
   end
 
   @impl Phoenix.LiveView
@@ -122,7 +128,12 @@ defmodule ErrorTracker.Web.Live.Dashboard do
 
   @impl Phoenix.LiveView
   def handle_event("prev-page", _params, socket) do
-    {:noreply, socket |> assign(page: socket.assigns.page - 1) |> paginate_errors()}
+    current_page = socket.assigns.page || 1
+
+    # Only go back if we're not already on the first page
+    new_page = if current_page > 1, do: current_page - 1, else: 1
+
+    {:noreply, socket |> assign(page: new_page) |> paginate_errors()}
   end
 
   @impl Phoenix.LiveView
@@ -156,7 +167,9 @@ defmodule ErrorTracker.Web.Live.Dashboard do
 
   @impl Phoenix.LiveView
   def handle_event("last-page", _params, socket) do
-    {:noreply, socket |> assign(page: socket.assigns.total_pages) |> paginate_errors()}
+    total_pages = socket.assigns.total_pages || 1
+
+    {:noreply, socket |> assign(page: total_pages) |> paginate_errors()}
   end
 
   @impl Phoenix.LiveView
@@ -207,7 +220,9 @@ defmodule ErrorTracker.Web.Live.Dashboard do
   defp paginate_errors(socket) do
     try do
       %{page: page, search: search} = socket.assigns
-      offset = (page - 1) * @per_page
+      # Ensure page is at least 1 before calculating offset
+      safe_page = max(1, page || 1)
+      offset = (safe_page - 1) * @per_page
       query = filter(Error, search)
 
       total_errors = Repo.aggregate(query, :count)
@@ -235,11 +250,17 @@ defmodule ErrorTracker.Web.Live.Dashboard do
           []
         end
 
+      total_pages = max(1, (total_errors / @per_page) |> Float.ceil() |> trunc)
+      current_page = socket.assigns[:page] || 1
+
+      # Ensure page is within valid bounds
+      valid_page = max(1, min(current_page, total_pages))
+
       assign(socket,
         errors: errors || [],
         occurrences: Map.new(occurrences || []),
-        total_pages: max(1, (total_errors / @per_page) |> Float.ceil() |> trunc),
-        page: socket.assigns[:page] || 1,
+        total_pages: total_pages,
+        page: valid_page,
         search: socket.assigns[:search] || %{},
         search_form: socket.assigns[:search_form] || Search.to_form(%{})
       )
