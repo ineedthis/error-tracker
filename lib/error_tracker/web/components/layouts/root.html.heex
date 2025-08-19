@@ -10,15 +10,91 @@
 
     <title><%= assigns[:page_title] || "🐛 ErrorTracker" %></title>
 
-    <style nonce={@csp_nonces[:style]}>
+    <style nonce={(@csp_nonces && @csp_nonces[:style]) || nil}>
       <%= raw get_content(:css) %>
     </style>
-    <script nonce={@csp_nonces[:script]}>
+    <script nonce={(@csp_nonces && @csp_nonces[:script]) || nil}>
       <%= raw get_content(:js) %>
     </script>
   </head>
 
   <body class="bg-gray-800 text-white">
     <%= @inner_content %>
+
+    <%= if Mix.env() == :dev do %>
+      <div id="dev-error-overlay" class="hidden fixed inset-0 bg-red-900/90 z-50 p-8">
+        <div class="bg-gray-900 rounded-lg p-6 max-w-4xl mx-auto mt-16 overflow-auto max-h-[70vh]">
+          <h2 class="text-red-400 text-xl font-bold mb-4">🐛 Development Error</h2>
+          <div id="error-details" class="text-sm font-mono text-gray-300"></div>
+          <button class="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700" onclick="document.getElementById('dev-error-overlay').classList.add('hidden')">
+            Close
+          </button>
+        </div>
+      </div>
+
+      <script nonce={(@csp_nonces && @csp_nonces[:script]) || nil}>
+        // Development error handler
+        window.showDevError = function(errorInfo) {
+          const overlay = document.getElementById('dev-error-overlay');
+          const details = document.getElementById('error-details');
+
+          if (!overlay || !details) return;
+
+          details.innerHTML = `
+            <div class="border-l-4 border-red-500 pl-4 mb-4">
+              <h3 class="text-red-400 font-bold">${errorInfo.type || 'Error'}</h3>
+              <p class="text-gray-300">${errorInfo.message || 'Unknown error'}</p>
+            </div>
+            ${errorInfo.stack ? `
+              <div class="mb-4">
+                <h4 class="text-gray-400 font-semibold mb-2">Stack Trace:</h4>
+                <pre class="bg-gray-800 p-3 rounded text-xs overflow-auto">${errorInfo.stack}</pre>
+              </div>
+            ` : ''}
+            ${errorInfo.details ? `
+              <div class="mb-4">
+                <h4 class="text-gray-400 font-semibold mb-2">Details:</h4>
+                <pre class="bg-gray-800 p-3 rounded text-xs overflow-auto">${errorInfo.details}</pre>
+              </div>
+            ` : ''}
+          `;
+
+          overlay.classList.remove('hidden');
+        };
+
+        // Capture JavaScript errors
+        window.addEventListener('error', function(event) {
+          window.showDevError({
+            type: 'JavaScript Error',
+            message: event.error?.message || event.message,
+            stack: event.error?.stack,
+            details: `File: ${event.filename}:${event.lineno}:${event.colno}`
+          });
+        });
+
+        // Capture unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(event) {
+          window.showDevError({
+            type: 'Unhandled Promise Rejection',
+            message: event.reason?.message || String(event.reason),
+            stack: event.reason?.stack
+          });
+        });
+
+        // Override console.error to capture more errors
+        const originalConsoleError = console.error;
+        console.error = function(...args) {
+          originalConsoleError.apply(console, args);
+
+          if (args.length > 0) {
+            window.showDevError({
+              type: 'Console Error',
+              message: args.join(' '),
+              details: args.map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)).join('\n')
+            });
+          }
+        };
+      </script>
+    <% end %>
   </body>
 </html>

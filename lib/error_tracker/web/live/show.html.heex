@@ -4,12 +4,13 @@
   </.link>
 </div>
 
-<div id="header">
+<div id="header" :if={@error}>
   <p class="text-sm uppercase font-semibold text-gray-400">
-    Error #<%= @error.id %> @ <%= format_datetime(@occurrence.inserted_at) %>
+    Error #<%= @error && @error.id %><%= if @occurrence && @occurrence.inserted_at, do: " @ #{format_datetime(@occurrence.inserted_at)}", else: "" %>
   </p>
   <h1 class="my-1 text-2xl w-full font-semibold whitespace-nowrap text-ellipsis overflow-hidden">
-    (<%= sanitize_module(@error.kind) %>) <%= @error.reason
+    (<%= sanitize_module(@error && @error.kind) %>) <%= (@error && @error.reason)
+    |> to_string()
     |> String.replace("\n", " ")
     |> String.trim() %>
   </h1>
@@ -17,17 +18,17 @@
 
 <div class="grid grid-cols-1 md:grid-cols-4 md:space-x-3 mt-6 gap-2">
   <div class="md:col-span-3 md:border-r md:border-gray-600 space-y-8 pr-5">
-    <.section title="Full message">
-      <pre class="overflow-auto p-4 rounded-lg bg-gray-300/10 border border-gray-900"><%= @occurrence.reason %></pre>
+    <.section :if={@occurrence} title="Full message">
+      <pre class="overflow-auto p-4 rounded-lg bg-gray-300/10 border border-gray-900"><%= @occurrence && @occurrence.reason %></pre>
     </.section>
 
-    <.section :if={ErrorTracker.Error.has_source_info?(@error)} title="Source">
+    <.section :if={@error && ErrorTracker.Error.has_source_info?(@error)} title="Source">
       <pre class="overflow-auto text-sm p-4 rounded-lg bg-gray-300/10 border border-gray-900">
-        <%= sanitize_module(@error.source_function) %>
-        <%= @error.source_line %></pre>
+        <%= sanitize_module(@error && @error.source_function) %>
+        <%= @error && @error.source_line %></pre>
     </.section>
 
-    <.section :if={@occurrence.breadcrumbs != []} title="Bread crumbs">
+    <.section :if={@occurrence && @occurrence.breadcrumbs != []} title="Bread crumbs">
       <div class="relative overflow-x-auto shadow-md sm:rounded-lg ring-1 ring-gray-900">
         <table class="w-full text-sm text-gray-400 table-fixed">
           <tr
@@ -38,7 +39,7 @@
             class="border-b bg-gray-400/10 border-gray-900 last:border-b-0"
           >
             <td class="w-11 pl-2 py-4 font-medium text-white relative text-right">
-              <%= length(@occurrence.breadcrumbs) - index %>.
+              <%= (@occurrence && @occurrence.breadcrumbs && length(@occurrence.breadcrumbs) - index) || 0 %>.
             </td>
             <td class="px-2 py-4 font-medium text-white relative"><%= breadcrumb %></td>
           </tr>
@@ -46,7 +47,7 @@
       </div>
     </.section>
 
-    <.section :if={@occurrence.stacktrace.lines != []} title="Stacktrace">
+    <.section :if={@occurrence && @occurrence.stacktrace && @occurrence.stacktrace.lines != []} title="Stacktrace">
       <div class="p-4 bg-gray-300/10 border border-gray-900 rounded-lg">
         <div class="w-full mb-4">
           <label class="flex justify-end">
@@ -65,11 +66,11 @@
         <div class="overflow-auto">
           <table class="w-100 text-sm" id="stacktrace">
             <tbody>
-              <tr :for={line <- @occurrence.stacktrace.lines} data-app={line.application || @app}>
+              <tr :for={line <- (@occurrence && @occurrence.stacktrace && @occurrence.stacktrace.lines) || []} data-app={line.application || @app}>
                 <td class="px-2 align-top"><pre>(<%= line.application || @app %>)</pre></td>
                 <td>
-                  <pre><%= "#{sanitize_module(line.module)}.#{line.function}/#{line.arity}" %>
-                <%= if line.line, do: "#{line.file}:#{line.line}", else: "(nofile)" %></pre>
+                  <pre><%= "#{sanitize_module(line.module || "UnknownModule")}.#{line.function || "unknown_function"}/#{line.arity || 0}" %>
+                <%= if line.line, do: "#{line.file || "unknown_file"}:#{line.line}", else: "(nofile)" %></pre>
                 </td>
               </tr>
             </tbody>
@@ -78,13 +79,13 @@
       </div>
     </.section>
 
-    <.section title="Context">
-      <pre class="overflow-auto text-sm p-4 rounded-lg bg-gray-300/10 border border-gray-900"><%= Jason.encode!(@occurrence.context, pretty: true) %></pre>
+    <.section :if={@occurrence} title="Context">
+      <pre class="overflow-auto text-sm p-4 rounded-lg bg-gray-300/10 border border-gray-900"><%= (@occurrence && @occurrence.context && Jason.encode!(@occurrence.context, pretty: true)) || "{}" %></pre>
     </.section>
   </div>
 
   <div class="px-3 md:pl-0 space-y-8">
-    <.section title={"Occurrence (#{@total_occurrences} total)"}>
+    <.section :if={@occurrence} title={"Occurrence (#{@total_occurrences} total)"}>
       <form phx-change="occurrence_navigation">
         <select
           name="occurrence_id"
@@ -93,7 +94,7 @@
           <option
             :for={occurrence <- @occurrences}
             value={occurrence.id}
-            selected={occurrence.id == @occurrence.id}
+            selected={@occurrence && occurrence.id == @occurrence.id}
           >
             <%= format_datetime(occurrence.inserted_at) %>
           </option>
@@ -114,38 +115,38 @@
       </nav>
     </.section>
 
-    <.section title="Error kind">
+    <.section :if={@error} title="Error kind">
       <pre><%= sanitize_module(@error.kind) %></pre>
     </.section>
 
-    <.section title="Last seen">
+    <.section :if={@error} title="Last seen">
       <pre><%= format_datetime(@error.last_occurrence_at) %></pre>
     </.section>
 
-    <.section title="First seen">
+    <.section :if={@error} title="First seen">
       <pre><%= format_datetime(@error.inserted_at) %></pre>
     </.section>
 
-    <.section title="Status" title_class="mb-3">
+    <.section :if={@error} title="Status" title_class="mb-3">
       <.badge :if={@error.status == :resolved} color={:green}>Resolved</.badge>
       <.badge :if={@error.status == :unresolved} color={:red}>Unresolved</.badge>
     </.section>
 
     <.section>
       <div class="flex flex-col gap-y-4">
-        <.button :if={@error.status == :unresolved} phx-click="resolve">
+        <.button :if={@error && @error.status == :unresolved} phx-click="resolve">
           Mark as resolved
         </.button>
 
-        <.button :if={@error.status == :resolved} phx-click="unresolve">
+        <.button :if={@error && @error.status == :resolved} phx-click="unresolve">
           Mark as unresolved
         </.button>
 
-        <.button :if={!@error.muted} phx-click="mute" type="link">
+        <.button :if={@error && !@error.muted} phx-click="mute" type="link">
           <.icon name="bell-slash" /> Mute
         </.button>
 
-        <.button :if={@error.muted} phx-click="unmute" type="link">
+        <.button :if={@error && @error.muted} phx-click="unmute" type="link">
           <.icon name="bell" /> Unmute
         </.button>
       </div>

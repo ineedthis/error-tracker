@@ -5,7 +5,7 @@ defmodule ErrorTracker.MixProject do
     [
       app: :error_tracker,
       version: "0.6.0",
-      elixir: "~> 1.15",
+      elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -84,34 +84,37 @@ defmodule ErrorTracker.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ecto_sql, "~> 3.0"},
-      {:ecto, "~> 3.11"},
-      {:jason, "~> 1.1"},
-      {:phoenix_live_view, "~> 0.19 or ~> 1.0"},
+      {:ecto_sql, "~> 3.12"},
+      {:ecto, "~> 3.12"},
+      {:jason, "~> 1.4"},
+      {:phoenix_live_view, "~> 1.0"},
       {:phoenix_ecto, "~> 4.6"},
-      {:plug, "~> 1.10"},
+      {:plug, "~> 1.16"},
       {:postgrex, ">= 0.0.0", optional: true},
       {:myxql, ">= 0.0.0", optional: true},
       {:ecto_sqlite3, ">= 0.0.0", optional: true},
       # Dev dependencies
-      {:bun, "~> 1.5", only: :dev},
-      {:credo, "~> 1.7.12", only: [:dev, :test]},
-      {:ex_doc, "~> 0.33", only: :dev},
-      {:phoenix_live_reload, ">= 0.0.0", only: :dev},
-      {:plug_cowboy, ">= 0.0.0", only: :dev},
-      {:tailwind, "~> 0.2", only: :dev},
-      # Optional dependencies
-      # {:igniter, "~> 0.5", optional: true}  # Temporarily disabled due to Elixir 1.18.4 compatibility
+      {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
+      {:credo, "~> 1.7", only: [:dev, :test]},
+      {:ex_doc, "~> 0.37", only: :dev},
+      {:phoenix_live_reload, "~> 1.5", only: :dev},
+      {:plug_cowboy, "~> 2.7", only: :dev},
+      {:tailwind, "~> 0.3", only: :dev}
+      # Optional dependencies - Re-enabled for Elixir 1.18 compatibility
+      # {:igniter, "~> 0.5", optional: true}
     ]
   end
 
   defp aliases do
     [
       dev: "run --no-halt dev.exs",
-      "assets.install": ["bun.install", "cmd _build/bun install --cwd assets/"],
+      "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.watch": ["tailwind default --watch"],
-      "assets.build": ["bun default", "tailwind default"],
-      "assets.build.prod": ["cmd _build/bun build assets/js/app.js --outdir priv/static --minify", "tailwind default --minify"]
+      "assets.build": ["esbuild default", "tailwind default"],
+      "assets.deploy": [
+        "esbuild default --minify",
+        "tailwind default --minify"
+      ]
     ]
   end
 end

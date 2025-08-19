@@ -1,46 +1,53 @@
-<.form
-  for={@search_form}
-  id="search"
-  class="mb-4 text-black grid md:grid-cols-4 grid-cols-2 gap-2"
-  phx-change="search"
->
-  <input
-    name={@search_form[:reason].name}
-    value={@search_form[:reason].value}
-    type="text"
-    placeholder="Error"
-    class="border text-sm rounded-lg block p-2.5 bg-gray-700 border-gray-600 placeholder-gray-400 text-white focus:ring-blue-500 focus:border-blue-500"
-    phx-debounce
-  />
-  <input
-    name={@search_form[:source_line].name}
-    value={@search_form[:source_line].value}
-    type="text"
-    placeholder="Source line"
-    class="border text-sm rounded-lg block p-2.5 bg-gray-700 border-gray-600 placeholder-gray-400 text-white focus:ring-blue-500 focus:border-blue-500"
-    phx-debounce
-  />
-  <input
-    name={@search_form[:source_function].name}
-    value={@search_form[:source_function].value}
-    type="text"
-    placeholder="Source function"
-    class="border text-sm rounded-lg block p-2.5 bg-gray-700 border-gray-600 placeholder-gray-400 text-white focus:ring-blue-500 focus:border-blue-500"
-    phx-debounce
-  />
-  <select
-    name={@search_form[:status].name}
-    class="border text-sm rounded-lg block p-2.5 bg-gray-700 border-gray-600 placeholder-gray-400 text-white focus:ring-blue-500 focus:border-blue-500"
+<div :if={@search_form} class="mb-4">
+  <.form
+    for={@search_form}
+    id="search"
+    class="text-black grid md:grid-cols-4 grid-cols-2 gap-2"
+    phx-change="search"
   >
-    <option value="" selected={@search_form[:status].value == ""}>All</option>
-    <option value="unresolved" selected={@search_form[:status].value == "unresolved"}>
-      Unresolved
-    </option>
-    <option value="resolved" selected={@search_form[:status].value == "resolved"}>
-      Resolved
-    </option>
-  </select>
-</.form>
+    <input
+      name={(@search_form[:reason] && @search_form[:reason].name) || "search[reason]"}
+      value={(@search_form[:reason] && @search_form[:reason].value) || ""}
+      type="text"
+      placeholder="Error"
+      class="border text-sm rounded-lg block p-2.5 bg-gray-700 border-gray-600 placeholder-gray-400 text-white focus:ring-blue-500 focus:border-blue-500"
+      phx-debounce
+    />
+    <input
+      name={(@search_form[:source_line] && @search_form[:source_line].name) || "search[source_line]"}
+      value={(@search_form[:source_line] && @search_form[:source_line].value) || ""}
+      type="text"
+      placeholder="Source line"
+      class="border text-sm rounded-lg block p-2.5 bg-gray-700 border-gray-600 placeholder-gray-400 text-white focus:ring-blue-500 focus:border-blue-500"
+      phx-debounce
+    />
+    <input
+      name={(@search_form[:source_function] && @search_form[:source_function].name) || "search[source_function]"}
+      value={(@search_form[:source_function] && @search_form[:source_function].value) || ""}
+      type="text"
+      placeholder="Source function"
+      class="border text-sm rounded-lg block p-2.5 bg-gray-700 border-gray-600 placeholder-gray-400 text-white focus:ring-blue-500 focus:border-blue-500"
+      phx-debounce
+    />
+    <select
+      name={(@search_form[:status] && @search_form[:status].name) || "search[status]"}
+      class="border text-sm rounded-lg block p-2.5 bg-gray-700 border-gray-600 placeholder-gray-400 text-white focus:ring-blue-500 focus:border-blue-500"
+    >
+      <option value="" selected={(@search_form[:status] && @search_form[:status].value) == ""}>All</option>
+      <option value="unresolved" selected={(@search_form[:status] && @search_form[:status].value) == "unresolved"}>
+        Unresolved
+      </option>
+      <option value="resolved" selected={(@search_form[:status] && @search_form[:status].value) == "resolved"}>
+        Resolved
+      </option>
+    </select>
+  </.form>
+</div>
+
+<!-- Fallback when search form is not available -->
+<div :if={!@search_form} class="mb-4 p-4 bg-yellow-900/20 border border-yellow-600 rounded-lg">
+  <p class="text-yellow-400 text-sm">Search form initializing...</p>
+</div>
 
 <div class="relative overflow-x-auto shadow-md sm:rounded-lg ring-1 ring-gray-900">
   <table class="w-full text-sm text-left rtl:text-right text-gray-400 table-fixed">
@@ -63,56 +70,56 @@
         class="border-b bg-gray-400/10 border-y border-gray-900 hover:bg-gray-800/60 last-of-type:border-b-0"
       >
         <td scope="row" class="px-4 py-4 font-medium text-white relative">
-          <.link navigate={error_path(@socket, error, @search)} class="absolute inset-1">
-            <span class="sr-only">(<%= sanitize_module(error.kind) %>) <%= error.reason %></span>
+          <.link :if={error} navigate={error_path(@socket, error, @search)} class="absolute inset-1">
+            <span class="sr-only">(<%= sanitize_module(error && error.kind) %>) <%= error && error.reason %></span>
           </.link>
           <p class="whitespace-nowrap text-ellipsis overflow-hidden">
-            (<%= sanitize_module(error.kind) %>) <%= error.reason %>
+            (<%= sanitize_module(error && error.kind) %>) <%= error && error.reason %>
           </p>
           <p
-            :if={ErrorTracker.Error.has_source_info?(error)}
+            :if={error && ErrorTracker.Error.has_source_info?(error)}
             class="whitespace-nowrap text-ellipsis overflow-hidden font-normal text-gray-400"
           >
-            <%= sanitize_module(error.source_function) %>
+            <%= sanitize_module(error && error.source_function) %>
             <br />
-            <%= error.source_line %>
+            <%= error && error.source_line %>
           </p>
         </td>
         <td class="px-4 py-4">
-          <p>Last: <%= format_datetime(error.last_occurrence_at) %></p>
-          <p>Total: <%= @occurrences[error.id] %></p>
+          <p>Last: <%= (error && error.last_occurrence_at && format_datetime(error.last_occurrence_at)) || "Unknown" %></p>
+          <p>Total: <%= (@occurrences && error && error.id && @occurrences[error.id]) || 0 %></p>
         </td>
         <td class="px-4 py-4">
-          <.badge :if={error.status == :resolved} color={:green}>Resolved</.badge>
-          <.badge :if={error.status == :unresolved} color={:red}>Unresolved</.badge>
+          <.badge :if={error && error.status == :resolved} color={:green}>Resolved</.badge>
+          <.badge :if={error && error.status == :unresolved} color={:red}>Unresolved</.badge>
         </td>
         <td class="px-4 py-4 text-center">
           <div class="flex justify-between">
             <.button
-              :if={error.status == :unresolved}
+              :if={error && error.status == :unresolved}
               phx-click="resolve"
-              phx-value-error_id={error.id}
+              phx-value-error_id={error && error.id}
             >
               Resolve
             </.button>
 
             <.button
-              :if={error.status == :resolved}
+              :if={error && error.status == :resolved}
               phx-click="unresolve"
-              phx-value-error_id={error.id}
+              phx-value-error_id={error && error.id}
             >
               Unresolve
             </.button>
 
-            <.button :if={!error.muted} phx-click="mute" type="link" phx-value-error_id={error.id}>
+            <.button :if={error && !error.muted} phx-click="mute" type="link" phx-value-error_id={error && error.id}>
               <.icon name="bell-slash" /> Mute
             </.button>
 
             <.button
-              :if={error.muted}
+              :if={error && error.muted}
               phx-click="unmute"
               type="link"
-              phx-value-error_id={error.id}
+              phx-value-error_id={error && error.id}
             >
               <.icon name="bell" /> Unmute
             </.button>
@@ -123,4 +130,9 @@
   </table>
 </div>
 
-<.pagination page={@page} total_pages={@total_pages} />
+<.pagination
+  page={@page || 1}
+  total_pages={@total_pages || 1}
+  event_previous="prev-page"
+  event_next="next-page"
+/>

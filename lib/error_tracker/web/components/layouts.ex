@@ -29,7 +29,7 @@ defmodule ErrorTracker.Web.Layouts do
     <nav class="border-gray-400 bg-gray-900">
       <div class="container flex flex-wrap items-center justify-between mx-auto p-4">
         <.link
-          href={dashboard_path(@socket)}
+          href={(@socket && dashboard_path(@socket)) || "#"}
           class="self-center text-2xl font-semibold whitespace-nowrap text-white"
         >
           <span class="mr-2">🐛</span>ErrorTracker

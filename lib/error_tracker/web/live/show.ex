@@ -13,37 +13,69 @@ defmodule ErrorTracker.Web.Live.Show do
 
   @impl Phoenix.LiveView
   def mount(params = %{"id" => id}, _session, socket) do
-    error = Repo.get!(Error, id)
+    # Always set up basic assigns first
+    socket =
+      assign(socket,
+        app: Application.fetch_env!(:error_tracker, :otp_app),
+        search: Search.from_params(params),
+        occurrence: nil,
+        occurrences: [],
+        total_occurrences: 0,
+        next: nil,
+        prev: nil,
+        error: nil
+      )
 
-    {:ok,
-     assign(socket,
-       error: error,
-       app: Application.fetch_env!(:error_tracker, :otp_app),
-       search: Search.from_params(params)
-     )}
+    case Repo.get(Error, id) do
+      nil ->
+        {:ok,
+         socket
+         |> put_flash(:error, "Error not found")
+         |> push_navigate(to: dashboard_path(socket, socket.assigns.search))}
+
+      error ->
+        {:ok, assign(socket, error: error)}
+    end
   end
 
   @impl Phoenix.LiveView
   def handle_params(params, _uri, socket) do
-    occurrence =
-      if occurrence_id = params["occurrence_id"] do
-        socket.assigns.error
-        |> Ecto.assoc(:occurrences)
-        |> Repo.get!(occurrence_id)
-      else
-        socket.assigns.error
-        |> Ecto.assoc(:occurrences)
-        |> order_by([o], desc: o.id)
-        |> limit(1)
-        |> Repo.one()
+    # If error is nil (from mount failure), redirect to dashboard
+    if is_nil(socket.assigns.error) do
+      {:noreply,
+       socket
+       |> put_flash(:error, "Error not found")
+       |> push_navigate(to: dashboard_path(socket, socket.assigns.search))}
+    else
+      occurrence =
+        if occurrence_id = params["occurrence_id"] do
+          socket.assigns.error
+          |> Ecto.assoc(:occurrences)
+          |> Repo.get!(occurrence_id)
+        else
+          socket.assigns.error
+          |> Ecto.assoc(:occurrences)
+          |> order_by([o], desc: o.id)
+          |> limit(1)
+          |> Repo.one()
+        end
+
+      case occurrence do
+        nil ->
+          {:noreply,
+           socket
+           |> put_flash(:error, "No occurrences found for this error")
+           |> push_navigate(to: dashboard_path(socket, socket.assigns.search))}
+
+        _occurrence ->
+          socket =
+            socket
+            |> assign(occurrence: occurrence)
+            |> load_related_occurrences()
+
+          {:noreply, socket}
       end
-
-    socket =
-      socket
-      |> assign(occurrence: occurrence)
-      |> load_related_occurrences()
-
-    {:noreply, socket}
+    end
   end
 
   @impl Phoenix.LiveView
@@ -53,7 +85,8 @@ defmodule ErrorTracker.Web.Live.Show do
   end
 
   @impl Phoenix.LiveView
-  def handle_event("occurrence_navigation", %{"occurrence_id" => id}, socket) when is_binary(id) do
+  def handle_event("occurrence_navigation", %{"occurrence_id" => id}, socket)
+      when is_binary(id) do
     case Integer.parse(id) do
       {parsed_id, ""} ->
         occurrence_path =
@@ -211,65 +244,75 @@ defmodule ErrorTracker.Web.Live.Show do
 
   defp load_related_occurrences(socket) do
     current_occurrence = socket.assigns.occurrence
-    base_query = Ecto.assoc(socket.assigns.error, :occurrences)
 
-    half_limit = floor(@occurrences_to_navigate / 2)
+    # Guard against nil occurrence (defensive programming)
+    if is_nil(current_occurrence) do
+      socket
+      |> assign(:occurrences, [])
+      |> assign(:total_occurrences, 0)
+      |> assign(:next, nil)
+      |> assign(:prev, nil)
+    else
+      base_query = Ecto.assoc(socket.assigns.error, :occurrences)
 
-    previous_occurrences_query = where(base_query, [o], o.id < ^current_occurrence.id)
-    next_occurrences_query = where(base_query, [o], o.id > ^current_occurrence.id)
-    previous_count = Repo.aggregate(previous_occurrences_query, :count)
-    next_count = Repo.aggregate(next_occurrences_query, :count)
+      half_limit = floor(@occurrences_to_navigate / 2)
 
-    {previous_limit, next_limit} =
-      cond do
-        previous_count < half_limit and next_count < half_limit ->
-          {previous_count, next_count}
+      previous_occurrences_query = where(base_query, [o], o.id < ^current_occurrence.id)
+      next_occurrences_query = where(base_query, [o], o.id > ^current_occurrence.id)
+      previous_count = Repo.aggregate(previous_occurrences_query, :count)
+      next_count = Repo.aggregate(next_occurrences_query, :count)
 
-        previous_count < half_limit ->
-          {previous_count, @occurrences_to_navigate - previous_count - 1}
+      {previous_limit, next_limit} =
+        cond do
+          previous_count < half_limit and next_count < half_limit ->
+            {previous_count, next_count}
 
-        next_count < half_limit ->
-          {@occurrences_to_navigate - next_count - 1, next_count}
+          previous_count < half_limit ->
+            {previous_count, @occurrences_to_navigate - previous_count - 1}
 
-        true ->
-          {half_limit, half_limit}
-      end
+          next_count < half_limit ->
+            {@occurrences_to_navigate - next_count - 1, next_count}
 
-    occurrences =
-      [
-        related_occurrences(next_occurrences_query, next_limit),
-        current_occurrence,
-        related_occurrences(previous_occurrences_query, previous_limit)
-      ]
-      |> List.flatten()
-      |> Enum.reverse()
+          true ->
+            {half_limit, half_limit}
+        end
 
-    total_occurrences =
-      socket.assigns.error
-      |> Ecto.assoc(:occurrences)
-      |> Repo.aggregate(:count)
+      occurrences =
+        [
+          related_occurrences(next_occurrences_query, next_limit),
+          current_occurrence,
+          related_occurrences(previous_occurrences_query, previous_limit)
+        ]
+        |> List.flatten()
+        |> Enum.reverse()
 
-    next_occurrence =
-      base_query
-      |> where([o], o.id > ^current_occurrence.id)
-      |> order_by([o], asc: o.id)
-      |> limit(1)
-      |> select([:id, :error_id, :inserted_at])
-      |> Repo.one()
+      total_occurrences =
+        socket.assigns.error
+        |> Ecto.assoc(:occurrences)
+        |> Repo.aggregate(:count)
 
-    prev_occurrence =
-      base_query
-      |> where([o], o.id < ^current_occurrence.id)
-      |> order_by([o], desc: o.id)
-      |> limit(1)
-      |> select([:id, :error_id, :inserted_at])
-      |> Repo.one()
+      next_occurrence =
+        base_query
+        |> where([o], o.id > ^current_occurrence.id)
+        |> order_by([o], asc: o.id)
+        |> limit(1)
+        |> select([:id, :error_id, :inserted_at])
+        |> Repo.one()
 
-    socket
-    |> assign(:occurrences, occurrences)
-    |> assign(:total_occurrences, total_occurrences)
-    |> assign(:next, next_occurrence)
-    |> assign(:prev, prev_occurrence)
+      prev_occurrence =
+        base_query
+        |> where([o], o.id < ^current_occurrence.id)
+        |> order_by([o], desc: o.id)
+        |> limit(1)
+        |> select([:id, :error_id, :inserted_at])
+        |> Repo.one()
+
+      socket
+      |> assign(:occurrences, occurrences)
+      |> assign(:total_occurrences, total_occurrences)
+      |> assign(:next, next_occurrence)
+      |> assign(:prev, prev_occurrence)
+    end
   end
 
   defp related_occurrences(query, num_results) do

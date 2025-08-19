@@ -11,19 +11,62 @@ defmodule ErrorTracker.Web.Live.Dashboard do
 
   @per_page 10
 
+  require Logger
+
+  @impl Phoenix.LiveView
+  def mount(_params, _session, socket) do
+    # Initialize all assigns with safe defaults using proper form construction
+    # Add extra safety checks to ensure nothing is nil
+    default_search =
+      try do
+        Search.from_params(%{}) || %{}
+      rescue
+        _ -> %{}
+      end
+
+    default_search_form =
+      try do
+        Search.to_form(%{})
+      rescue
+        _ -> nil
+      end
+
+    socket_with_assigns =
+      assign(socket,
+        path: %URI{},
+        search: default_search || %{},
+        page: 1,
+        search_form: default_search_form,
+        errors: [],
+        occurrences: %{},
+        total_pages: 1,
+        # Add debug flag to check initialization
+        _debug_initialized: true
+      )
+
+    {:ok, socket_with_assigns}
+  end
+
   @impl Phoenix.LiveView
   def handle_params(params, uri, socket) do
     path = struct(URI, uri |> URI.parse() |> Map.take([:path, :query]))
+    search = Search.from_params(params || %{})
+    search_form = Search.to_form(params || %{})
 
-    {:noreply,
-     socket
-     |> assign(
-       path: path,
-       search: Search.from_params(params),
-       page: 1,
-       search_form: Search.to_form(params)
-     )
-     |> paginate_errors()}
+    # Ensure all assigns have safe defaults
+    socket_with_defaults =
+      socket
+      |> assign(
+        path: path || %URI{},
+        search: search || %{},
+        page: 1,
+        search_form: search_form || Search.to_form(%{}),
+        errors: [],
+        occurrences: %{},
+        total_pages: 1
+      )
+
+    {:noreply, paginate_errors(socket_with_defaults)}
   end
 
   @impl Phoenix.LiveView
@@ -162,39 +205,57 @@ defmodule ErrorTracker.Web.Live.Dashboard do
   end
 
   defp paginate_errors(socket) do
-    %{page: page, search: search} = socket.assigns
-    offset = (page - 1) * @per_page
-    query = filter(Error, search)
+    try do
+      %{page: page, search: search} = socket.assigns
+      offset = (page - 1) * @per_page
+      query = filter(Error, search)
 
-    total_errors = Repo.aggregate(query, :count)
+      total_errors = Repo.aggregate(query, :count)
 
-    errors =
-      Repo.all(
-        from query,
-          order_by: [desc: :last_occurrence_at],
-          offset: ^offset,
-          limit: @per_page
+      errors =
+        Repo.all(
+          from(query,
+            order_by: [desc: :last_occurrence_at],
+            offset: ^offset,
+            limit: @per_page
+          )
+        )
+
+      error_ids = Enum.map(errors, & &1.id)
+
+      occurrences =
+        if errors != [] do
+          errors
+          |> Ecto.assoc(:occurrences)
+          |> where([o], o.error_id in ^error_ids)
+          |> group_by([o], o.error_id)
+          |> select([o], {o.error_id, count(o.id)})
+          |> Repo.all()
+        else
+          []
+        end
+
+      assign(socket,
+        errors: errors || [],
+        occurrences: Map.new(occurrences || []),
+        total_pages: max(1, (total_errors / @per_page) |> Float.ceil() |> trunc),
+        page: socket.assigns[:page] || 1,
+        search: socket.assigns[:search] || %{},
+        search_form: socket.assigns[:search_form] || Search.to_form(%{})
       )
+    rescue
+      e ->
+        Logger.error("[ErrorTracker Dashboard] Error paginating: #{inspect(e)}")
 
-    error_ids = Enum.map(errors, & &1.id)
-
-    occurrences =
-      if errors != [] do
-        errors
-        |> Ecto.assoc(:occurrences)
-        |> where([o], o.error_id in ^error_ids)
-        |> group_by([o], o.error_id)
-        |> select([o], {o.error_id, count(o.id)})
-        |> Repo.all()
-      else
-        []
-      end
-
-    assign(socket,
-      errors: errors,
-      occurrences: Map.new(occurrences),
-      total_pages: (total_errors / @per_page) |> Float.ceil() |> trunc
-    )
+        assign(socket,
+          errors: [],
+          occurrences: %{},
+          total_pages: 1,
+          page: socket.assigns[:page] || 1,
+          search: socket.assigns[:search] || %{},
+          search_form: socket.assigns[:search_form] || Search.to_form(%{})
+        )
+    end
   end
 
   defp filter(query, search) do

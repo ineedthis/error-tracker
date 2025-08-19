@@ -8,7 +8,10 @@ let socketPath = document.querySelector("meta[name='socket-path']").getAttribute
 let socketTransport = document.querySelector("meta[name='socket-transport']").getAttribute("content");
 let normalizedTransport = (socketTransport == "longpoll") ? LongPoll : WebSocket;
 
-let liveSocket = new LiveSocket(socketPath, Socket, { transport: normalizedTransport, params: { _csrf_token: csrfToken }});
+let liveSocket = new LiveSocket(socketPath, Socket, {
+  transport: normalizedTransport,
+  params: { _csrf_token: csrfToken }
+});
 
 // Show progress bar on live navigation and form submits
 topbar.config({ barColors: { 0: "#29d" }, shadowColor: "rgba(0, 0, 0, .3)" });
