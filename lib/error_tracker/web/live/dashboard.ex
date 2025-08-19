@@ -35,14 +35,85 @@ defmodule ErrorTracker.Web.Live.Dashboard do
     {:noreply, push_patch(socket, to: URI.to_string(path_w_filters))}
   end
 
+  # Handle pagination events with empty or invalid values
+  @impl Phoenix.LiveView
+  def handle_event("next-page", %{"value" => ""}, socket) do
+    # Don't change page for empty values - just return current socket
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("next-page", %{"value" => nil}, socket) do
+    # Don't change page for nil values
+    {:noreply, socket}
+  end
+
   @impl Phoenix.LiveView
   def handle_event("next-page", _params, socket) do
     {:noreply, socket |> assign(page: socket.assigns.page + 1) |> paginate_errors()}
   end
 
   @impl Phoenix.LiveView
+  def handle_event("previous-page", %{"value" => ""}, socket) do
+    # Don't change page for empty values
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("previous-page", %{"value" => nil}, socket) do
+    # Don't change page for nil values
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("prev-page", %{"value" => ""}, socket) do
+    # Don't change page for empty values
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("prev-page", %{"value" => nil}, socket) do
+    # Don't change page for nil values
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
   def handle_event("prev-page", _params, socket) do
     {:noreply, socket |> assign(page: socket.assigns.page - 1) |> paginate_errors()}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("first-page", %{"value" => ""}, socket) do
+    # Don't change page for empty values
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("first-page", %{"value" => nil}, socket) do
+    # Don't change page for nil values
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("first-page", _params, socket) do
+    {:noreply, socket |> assign(page: 1) |> paginate_errors()}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("last-page", %{"value" => ""}, socket) do
+    # Don't change page for empty values
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("last-page", %{"value" => nil}, socket) do
+    # Don't change page for nil values
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("last-page", _params, socket) do
+    {:noreply, socket |> assign(page: socket.assigns.total_pages) |> paginate_errors()}
   end
 
   @impl Phoenix.LiveView
@@ -75,6 +146,19 @@ defmodule ErrorTracker.Web.Live.Dashboard do
     {:ok, _unmuted} = ErrorTracker.unmute(error)
 
     {:noreply, paginate_errors(socket)}
+  end
+
+  # Catch-all for any unhandled events with empty values
+  @impl Phoenix.LiveView
+  def handle_event(_event, %{"value" => ""}, socket) do
+    # Handle any event with empty value gracefully
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event(_event, %{"value" => nil}, socket) do
+    # Handle any event with nil value gracefully
+    {:noreply, socket}
   end
 
   defp paginate_errors(socket) do

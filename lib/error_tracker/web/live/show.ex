@@ -47,6 +47,31 @@ defmodule ErrorTracker.Web.Live.Show do
   end
 
   @impl Phoenix.LiveView
+  def handle_event("occurrence_navigation", %{"occurrence_id" => ""}, socket) do
+    # Handle empty occurrence_id - just return current state
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("occurrence_navigation", %{"occurrence_id" => id}, socket) when is_binary(id) do
+    case Integer.parse(id) do
+      {parsed_id, ""} ->
+        occurrence_path =
+          occurrence_path(
+            socket,
+            %Occurrence{error_id: socket.assigns.error.id, id: parsed_id},
+            socket.assigns.search
+          )
+
+        {:noreply, push_patch(socket, to: occurrence_path)}
+
+      _ ->
+        # Invalid ID format - just return current state
+        {:noreply, socket}
+    end
+  end
+
+  @impl Phoenix.LiveView
   def handle_event("occurrence_navigation", %{"occurrence_id" => id}, socket) do
     occurrence_path =
       occurrence_path(
@@ -84,6 +109,104 @@ defmodule ErrorTracker.Web.Live.Show do
     {:ok, updated_error} = ErrorTracker.unmute(socket.assigns.error)
 
     {:noreply, assign(socket, :error, updated_error)}
+  end
+
+  # Handle pagination events with empty or invalid values
+  @impl Phoenix.LiveView
+  def handle_event("next-page", %{"value" => ""}, socket) do
+    # Don't change page for empty values - just return current socket
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("next-page", %{"value" => nil}, socket) do
+    # Don't change page for nil values
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("next-page", _params, socket) do
+    # Handle next page event - this might be triggered accidentally
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("previous-page", %{"value" => ""}, socket) do
+    # Don't change page for empty values
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("previous-page", %{"value" => nil}, socket) do
+    # Don't change page for nil values
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("prev-page", %{"value" => ""}, socket) do
+    # Handle previous page event with empty value - pagination boundary reached
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("prev-page", %{"value" => nil}, socket) do
+    # Handle previous page event with nil value - pagination boundary reached
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("prev-page", _params, socket) do
+    # Handle previous page event - this might be triggered accidentally
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("first-page", %{"value" => ""}, socket) do
+    # Don't change page for empty values
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("first-page", %{"value" => nil}, socket) do
+    # Don't change page for nil values
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("first-page", _params, socket) do
+    # Handle first page event
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("last-page", %{"value" => ""}, socket) do
+    # Don't change page for empty values
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("last-page", %{"value" => nil}, socket) do
+    # Don't change page for nil values
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event("last-page", _params, socket) do
+    # Handle last page event
+    {:noreply, socket}
+  end
+
+  # Catch-all for any unhandled events with empty values
+  @impl Phoenix.LiveView
+  def handle_event(_event, %{"value" => ""}, socket) do
+    # Handle any event with empty value gracefully
+    {:noreply, socket}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_event(_event, %{"value" => nil}, socket) do
+    # Handle any event with nil value gracefully
+    {:noreply, socket}
   end
 
   defp load_related_occurrences(socket) do
