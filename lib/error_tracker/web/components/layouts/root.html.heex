@@ -21,7 +21,7 @@
   <body class="bg-gray-800 text-white">
     <%= @inner_content %>
 
-    <%= if Mix.env() == :dev do %>
+    <%= if Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) and Mix.env() == :dev do %>
       <div id="dev-error-overlay" class="hidden fixed inset-0 bg-red-900/90 z-50 p-8">
         <div class="bg-gray-900 rounded-lg p-6 max-w-4xl mx-auto mt-16 overflow-auto max-h-[70vh]">
           <h2 class="text-red-400 text-xl font-bold mb-4">🐛 Development Error</h2>
